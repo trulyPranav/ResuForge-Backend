@@ -2,12 +2,15 @@ from flask import Flask, request, jsonify
 import requests
 from dotenv import load_dotenv
 import os
+from flask_cors import CORS
 
 load_dotenv()
 
 token = os.getenv('TOKEN')
 
 app = Flask(__name__)
+
+CORS(app)
 
 @app.route('/', methods=['POST'])
 def get_top_repos():
