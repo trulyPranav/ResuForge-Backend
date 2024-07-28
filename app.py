@@ -1,44 +1,48 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
 from flask import Flask, request, jsonify
-import time
+import requests
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+token = os.getenv('TOKEN')
 
 app = Flask(__name__)
 
 @app.route('/', methods=['POST'])
-def handling():
+def get_top_repos():
+
     data = request.get_json()
-    user = data.get('username')
-    pword = data.get('password')
-    link = data.get('link')
-
-    driver = webdriver.Chrome()
+    username = data.get('username')
     
-    try:
-        driver.get("https://www.linkedin.com/login")
-        time.sleep(5)
+    if not username:
+        return jsonify({'error': 'Username field is required'}), 400
 
-        username = driver.find_element(By.ID, "username")
-        username.send_keys(user)
+    headers = {'Authorization': f'token {token}'}
+    url = f'https://api.github.com/users/{username}/repos'
+    response = requests.get(url, headers=headers)
 
-        password = driver.find_element(By.ID, "password")
-        password.send_keys(pword)
+    if response.status_code != 200:
+        return jsonify({'error': 'Failed to fetch data from GitHub'}), response.status_code
 
-        driver.find_element(By.XPATH, "//button[@type='submit']").click()
+    repos = response.json()
+    repos = [repo for repo in repos if repo.get('name') != username]
 
-        time.sleep(5)
-        
-        driver.get(link)
+    # Sort repositories by the number of stars (in descending order)
+    sorted_repos = sorted(repos, key=lambda x: x.get('stargazers_count', 0), reverse=True)
 
-        return jsonify({"status": "success", "message": "Navigated to profile page"}), 200
+    top_repos = sorted_repos[:3]
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        print(f"Current URL: {driver.current_url}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+    result = []
+    for repo in top_repos:
+        repo_data = {
+            'name': repo.get('name'),
+            'description': repo.get('description', 'No description'),
+            'stars': repo.get('stargazers_count', 0)
+        }
+        result.append(repo_data)
 
-    finally:
-        driver.quit()
+    return jsonify(result)
 
 if __name__ == '__main__':
     app.run(debug=True)
